@@ -25,7 +25,7 @@ permissions: {}
 
 jobs:
   preflight:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     name: Preflight
     outputs:
       repository: ${{ steps.repository.outputs.repository }}
@@ -59,7 +59,7 @@ jobs:
           fi
 
   owner:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     name: Owner
     needs: preflight
     if: needs.preflight.outputs.removal != 'true'
@@ -84,7 +84,7 @@ jobs:
           REPOSITORY: ${{needs.preflight.outputs.repository}}
 
   editable:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     name: Editable PR
     steps:
       - name: Check out repository
@@ -105,7 +105,7 @@ jobs:
         run: python3 -m scripts.check.edits
 
   releases:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     name: Releases
     needs: preflight
     if: needs.preflight.outputs.removal != 'true'
@@ -130,7 +130,7 @@ jobs:
           REPOSITORY: ${{needs.preflight.outputs.repository}}
 
   removed:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     name: Removed repository
     needs: preflight
     if: needs.preflight.outputs.removal != 'true'
@@ -154,7 +154,7 @@ jobs:
           REPOSITORY: ${{needs.preflight.outputs.repository}}
 
   existing:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     name: Existing repository
     needs: preflight
     if: needs.preflight.outputs.removal != 'true'

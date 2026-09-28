@@ -16,7 +16,7 @@ concurrency:
 jobs:
   jq:
     name: JQ
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
@@ -26,7 +26,7 @@ jobs:
 
   jsonschema:
     name: JSON schema
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
@@ -51,7 +51,7 @@ jobs:
 
   sorted:
     name: Sorted
-    runs-on: ubuntu-latest
+    runs-on: truenas-default
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
