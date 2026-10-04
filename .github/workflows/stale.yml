@@ -8,7 +8,7 @@ permissions: {}
 
 jobs:
   stale:
-    runs-on: truenas-default
+    runs-on: truenas-default-storage-8g
     permissions:
       actions: write
       issues: write
