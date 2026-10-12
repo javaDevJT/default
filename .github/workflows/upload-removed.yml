@@ -53,6 +53,7 @@ jobs:
           name: removed
           path: upload/removed
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload to R2
         run: |
