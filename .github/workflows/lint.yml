@@ -31,23 +31,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
 
-      - name: Critical
-        uses: cardinalby/schema-validator-action@3.1.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          file: "critical"
-          schema: "tools/jsonschema/critical.schema.json"
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Critical
+        run: tools/ci/run-schema-validator.sh critical tools/jsonschema/critical.schema.json
 
       - name: Repositories
-        uses: cardinalby/schema-validator-action@3.1.1
-        with:
-          file: "appdaemon|blacklist|integration|netdaemon|plugin|python_script|template|theme"
-          schema: "tools/jsonschema/repositories.schema.json"
+        run: tools/ci/run-schema-validator.sh 'appdaemon|blacklist|integration|netdaemon|plugin|python_script|template|theme' tools/jsonschema/repositories.schema.json
 
       - name: Removed
-        uses: cardinalby/schema-validator-action@3.1.1
-        with:
-          file: "removed"
-          schema: "tools/jsonschema/removed.schema.json"
+        run: tools/ci/run-schema-validator.sh removed tools/jsonschema/removed.schema.json
 
   sorted:
     name: Sorted

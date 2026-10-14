@@ -180,13 +180,33 @@ jobs:
           REPOSITORY: ${{needs.preflight.outputs.repository}}
 
   hassfest:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default-storage-8g
     name: Hassfest
     needs: preflight
     if: needs.preflight.outputs.category == 'integration' && needs.preflight.outputs.removal != 'true'
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check out trusted validator adapter
+        uses: actions/checkout@v6.0.2
+        with:
+          path: .ci/trusted-adapter
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Prepare disk dependency cache
+        run: ci-cache downloads
+
+      - name: Set up Python for Hassfest
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.14.5"
+
+      - name: Register Hassfest problem matcher
+        run: echo "::add-matcher::$GITHUB_WORKSPACE/.ci/trusted-adapter/.github/scripts/hassfest-problem-matcher.json"
 
       - name: Clone new addition
         run: |
@@ -195,19 +215,79 @@ jobs:
       - name: Run hassfest
         run: |
           integration=$(python3 -m scripts.helpers.integration_path)
-          domain=$(python3 -m scripts.helpers.domain)
-          docker run --rm \
-            -v "$integration":"/github/workspace/$domain" \
-            ghcr.io/home-assistant/hassfest:latest
+          bash .ci/trusted-adapter/.github/scripts/ha-validators.sh hassfest --integration-path "$integration"
 
   hacs:
-    runs-on: ubuntu-latest
+    runs-on: truenas-default-storage-8g
     name: HACS action
     needs: preflight
     if: needs.preflight.outputs.removal != 'true'
+    env:
+      BUILDKIT_TLS_CA_CERT: /run/buildkit/tls/ca.pem
+      BUILDKIT_TLS_CLIENT_CERT: /run/buildkit/tls/client.pem
+      BUILDKIT_TLS_CLIENT_KEY: /run/buildkit/tls/client.key
     steps:
-      - name: HACS action
-        uses: hacs/action@main
+      - name: Check out trusted CI adapter
+        uses: actions/checkout@v6.0.2
         with:
-          repository: ${{needs.preflight.outputs.repository}}
-          category: ${{needs.preflight.outputs.category}}
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python for HACS image resolution
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: "3.14.5"
+
+      - name: Prepare empty HACS context
+        run: |
+          mkdir -p "$RUNNER_TEMP/hacs-context"
+          cp .github/scripts/hacs-remote-validator.Dockerfile "$RUNNER_TEMP/hacs-context/Dockerfile"
+
+      - name: Set up isolated BuildKit
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          cache-binary: false
+          driver: remote
+          endpoint: tcp://buildkit:1234
+          driver-opts: |
+            cacert=${{ env.BUILDKIT_TLS_CA_CERT }}
+            cert=${{ env.BUILDKIT_TLS_CLIENT_CERT }}
+            key=${{ env.BUILDKIT_TLS_CLIENT_KEY }}
+
+      - name: Resolve current HACS validator image
+        id: hacs-image
+        run: python3 .github/scripts/resolve-hacs-image.py
+
+      - name: Run HACS validator
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+          HACS_GITHUB_TOKEN: ${{ github.token }}
+        with:
+          build-args: |
+            HACS_ACTION_IMAGE=${{ steps.hacs-image.outputs.image }}
+            GITHUB_ACTOR=${{ github.actor }}
+            GITHUB_REPOSITORY=${{ github.repository }}
+            GITHUB_REF=${{ github.ref }}
+            GITHUB_SHA=${{ github.sha }}
+            GITHUB_EVENT_NAME=${{ github.event_name }}
+            INPUT_CATEGORY=${{ needs.preflight.outputs.category }}
+            INPUT_REPOSITORY=${{ needs.preflight.outputs.repository }}
+            INPUT_COMMENT=true
+          context: ${{ runner.temp }}/hacs-context
+          file: Dockerfile
+          no-cache: true
+          outputs: type=local,dest=${{ runner.temp }}/hacs-result
+          platforms: linux/amd64
+          secret-envs: hacs-token=HACS_GITHUB_TOKEN
+          secret-files: github-event=${{ github.event_path }}
+          target: result
+
+      - name: Require passing HACS result
+        run: |
+          cat "$RUNNER_TEMP/hacs-result/validator.log"
+          test "$(cat "$RUNNER_TEMP/hacs-result/exit-code")" = 0
+
+      - name: Remove temporary HACS files
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/hacs-context" "$RUNNER_TEMP/hacs-result"
